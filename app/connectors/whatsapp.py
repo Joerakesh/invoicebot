@@ -3,6 +3,7 @@ import requests
 
 from app.config.settings import settings
 
+from app.core.processor import process_invoice
 
 def download_whatsapp_media(media_id: str, filename: str):
 
@@ -37,5 +38,10 @@ def download_whatsapp_media(media_id: str, filename: str):
         f.write(file_response.content)
 
     print("WHATSAPP PDF SAVED:", save_path)
+    
+    process_invoice(
+        save_path,
+        source="whatsapp"
+    )
 
     return save_path

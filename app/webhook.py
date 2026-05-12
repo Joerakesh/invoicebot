@@ -1,11 +1,15 @@
 from fastapi import FastAPI, Request
+
 from app.connectors.whatsapp import download_whatsapp_media
-from app.utils.pdf_reader import read_pdf
-from app.utils.invoice_cleaner import clean_invoice_text
-from app.ai.extractor import extract_invoice
-from app.services.excel_service import save_invoice
-from app.utils.file_handler import move_processed
+
+from app.core.processor import process_invoice
+
+from app.web.routes import router as web_router
+
+
 app = FastAPI()
+
+app.include_router(web_router)
 
 VERIFY_TOKEN = "invoicebot123"
 
@@ -16,15 +20,20 @@ async def verify_webhook(request: Request):
     params = request.query_params
 
     mode = params.get("hub.mode")
+
     token = params.get("hub.verify_token")
+
     challenge = params.get("hub.challenge")
 
     if mode and token:
 
         if token == VERIFY_TOKEN:
+
             return int(challenge)
 
-    return {"error": "Invalid verification"}
+    return {
+        "error": "Invalid verification"
+    }
 
 
 @app.post("/webhook")
@@ -33,59 +42,55 @@ async def whatsapp_webhook(request: Request):
     body = await request.json()
 
     print("WHATSAPP WEBHOOK RECEIVED")
+
     print(body)
 
     try:
 
         changes = body["entry"][0]["changes"][0]["value"]
 
-        if "messages" in changes:
+        if "messages" not in changes:
 
-            msg = changes["messages"][0]
+            return {
+                "status": "no messages"
+            }
 
-            if msg["type"] == "document":
+        msg = changes["messages"][0]
 
-                document = msg["document"]
+        if msg["type"] != "document":
 
-                media_id = document["id"]
+            return {
+                "status": "not document"
+            }
 
-                filename = document["filename"]
+        document = msg["document"]
 
-                download_whatsapp_media(
-                    media_id,
-                    filename
-                )
-                
-                saved_path = download_whatsapp_media(
-                    media_id,
-                    filename
-                )
+        media_id = document["id"]
 
-                print("STARTING AI PROCESSING")
+        filename = document["filename"]
 
-                text = read_pdf(saved_path)
+        saved_path = download_whatsapp_media(
+            media_id,
+            filename
+        )
 
-                cleaned_text = clean_invoice_text(text)
+        if not saved_path:
 
-                data = extract_invoice(cleaned_text)
+            print("MEDIA DOWNLOAD FAILED")
 
-                print("AI RESPONSE:", data)
+            return {
+                "status": "download failed"
+            }
 
-                if data:
-
-                    saved = save_invoice(data)
-
-                    if saved:
-                        print("EXCEL UPDATED")
-                    else:
-                        print("DUPLICATE DETECTED")
-
-                    move_processed(saved_path)
-
-                    print("FILE MOVED")
+        process_invoice(
+            saved_path,
+            source="whatsapp"
+        )
 
     except Exception as e:
 
         print("WEBHOOK ERROR:", str(e))
 
-    return {"status": "received"}
+    return {
+        "status": "received"
+    }
