@@ -1,73 +1,82 @@
 import os
 
-from openpyxl import Workbook, load_workbook
+from openpyxl import Workbook
+from openpyxl import load_workbook
 
-EXPORT_FILE = "storage/exports/Invoices.xlsx"
-
-
-def invoice_exists(ws, invoice_no):
-
-    for row in ws.iter_rows(min_row=2):
-
-        cell_value = row[0].value
-
-        if cell_value == invoice_no:
-            return True
-
-    return False
+FILE_NAME = "Invoices_Master.xlsx"
 
 
-def save_invoice(data: dict):
+def save_excel(base_path, data):
+
+    os.makedirs(
+        base_path,
+        exist_ok=True
+    )
+
+    file_path = os.path.join(
+        base_path,
+        FILE_NAME
+    )
+
+    sheet_name = data["company"][:31]
 
     row = [
         data["invoice_no"],
-        data["company"],
         data["date"],
-        data["currency"],
-        data["vat"],
+        data["company"],
         data["total"],
+        data["vat"],
+        data["currency"],
+        data["source"],
         data["confidence"]
     ]
 
-    if not os.path.exists(EXPORT_FILE):
+    if not os.path.exists(file_path):
 
         wb = Workbook()
 
         ws = wb.active
 
-        ws.title = "Invoices"
+        ws.title = sheet_name
 
         ws.append([
             "Invoice No",
-            "Company",
             "Date",
-            "Currency",
-            "VAT",
+            "Company",
             "Total",
+            "VAT",
+            "Currency",
+            "Source",
             "Confidence"
         ])
 
         ws.append(row)
 
-        wb.save(EXPORT_FILE)
+        wb.save(file_path)
 
-        return True
+        return
 
-    wb = load_workbook(EXPORT_FILE)
+    wb = load_workbook(file_path)
 
-    ws = wb.active
+    if sheet_name not in wb.sheetnames:
 
-    if invoice_exists(
-        ws,
-        data["invoice_no"]
-    ):
+        ws = wb.create_sheet(title=sheet_name)
 
-        print("DUPLICATE INVOICE SKIPPED")
+        ws.append([
+            "Invoice No",
+            "Date",
+            "Company",
+            "Total",
+            "VAT",
+            "Currency",
+            "Source",
+            "Confidence"
+        ])
 
-        return False
+    else:
+
+        ws = wb[sheet_name]
 
     ws.append(row)
 
-    wb.save(EXPORT_FILE)
-
-    return True
+    wb.save(file_path)
