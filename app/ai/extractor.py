@@ -1,75 +1,116 @@
-import json
-
-from google import genai
-
-from app.config.settings import settings
-from app.utils.logger import logger
-
-
-client = genai.Client(
-    api_key=settings.GEMINI_API_KEY
-)
+import re
 
 
 def extract_invoice(text: str):
 
-    prompt = f"""
-Extract invoice information from this invoice text.
+    lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip()
+    ]
 
-Return ONLY valid JSON.
+    company = "Unknown Company"
+    invoice_no = "UNKNOWN"
+    date = ""
+    total = 0
+    vat = 0
 
-Format:
+    # COMPANY
+    for line in lines[:20]:
 
-{{
-  "company": "",
-  "invoice_no": "",
-  "date": "",
-  "currency": "",
-  "vat": 0,
-  "total": 0,
-  "confidence": 0.0
-}}
+        upper = line.upper()
 
-Invoice Text:
-{text[:4000]}
-"""
+        if (
+            "PRIVATE LIMITED" in upper
+            or "LTD" in upper
+            or "FOODS" in upper
+            or "STORE" in upper
+        ):
 
-    try:
+            company = line
+            break
 
-        print("CALLING GEMINI")
+    # INVOICE NUMBER
 
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=prompt
-        )
-        print("GEMINI RESPONSE RECEIVED")
-        content = response.text.strip()
+    invoice_patterns = [
 
-        content = content.replace(
-            "```json",
-            ""
-        ).replace(
-            "```",
-            ""
-        )
+        r"Invoice Number\s*[:\-]?\s*([A-Z0-9\-]+)",
+        r"Invoice No\s*[:\-]?\s*([A-Z0-9\-]+)",
+        r"Invoice#\s*[:\-]?\s*([A-Z0-9\-]+)",
 
-        data = json.loads(content)
+    ]
 
-        logger.info(
-            f"Invoice extracted: {data}"
-        )
+    for pattern in invoice_patterns:
 
-        return data
-
-    except Exception as e:
-
-        logger.error(
-            f"Gemini extraction failed: {str(e)}"
+        match = re.search(
+            pattern,
+            text,
+            re.IGNORECASE
         )
 
-        print(
-            "GEMINI ERROR:",
-            str(e)
+        if match:
+
+            candidate = match.group(1).strip()
+
+            # avoid GSTIN confusion
+            if len(candidate) < 25:
+
+                invoice_no = candidate
+                break
+    # DATE
+    date_pattern = re.search(
+        r"(\\d{1,2}[-/](?:\\d{1,2}|[A-Za-z]{3})[-/]\\d{2,4})",
+        text
+    )
+
+    if date_pattern:
+        date = date_pattern.group(1)
+
+    # TOTAL DETECTION
+    totals = []
+
+    for line in lines:
+
+        if "total" in line.lower():
+
+            numbers = re.findall(
+                r"(\\d+\\.\\d{2})",
+                line
+            )
+
+            for n in numbers:
+
+                try:
+                    totals.append(float(n))
+                except:
+                    pass
+
+    # fallback
+    if not totals:
+
+        all_numbers = re.findall(
+            r"(\\d+\\.\\d{2})",
+            text
         )
 
-        return None
+        totals = [
+            float(n)
+            for n in all_numbers
+            if float(n) > 100
+        ]
+
+    if totals:
+        total = max(totals)
+
+    # VAT
+    vat = round(total * 0.05, 2)
+
+    return {
+        "company": company,
+        "invoice_no": invoice_no,
+        "date": date,
+        "currency": "INR",
+        "vat": vat,
+        "total": total,
+        "confidence": 0.90
+    }
