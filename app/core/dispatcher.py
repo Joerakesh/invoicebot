@@ -1,4 +1,5 @@
-from app.connectors.local import LocalConnector
+from app.connectors.whatsapp import WhatsAppConnector
+from app.connectors.gmail import GmailConnector
 
 
 class Dispatcher:
@@ -6,7 +7,7 @@ class Dispatcher:
     def __init__(self):
 
         self.connectors = [
-            LocalConnector()
+            GmailConnector(),
         ]
 
     def run(self):
@@ -15,8 +16,17 @@ class Dispatcher:
 
         for connector in self.connectors:
 
-            connector_files = connector.fetch()
+            try:
 
-            files.extend(connector_files)
+                files.extend(
+                    connector.fetch()
+                )
+
+            except Exception as e:
+
+                print(
+                    "CONNECTOR ERROR:",
+                    str(e)
+                )
 
         return files
