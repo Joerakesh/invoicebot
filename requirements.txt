@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+google-genai
+pdfplumber
+openpyxl
+python-dotenv
+python-multipart
+pydantic
+sqlalchemy
+psycopg2-binary
+google-api-python-client
+google-auth
+google-auth-oauthlib
+gspread
+requests
