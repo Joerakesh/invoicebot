@@ -1,98 +1,175 @@
 # InvoiceBot
 
-AI-powered WhatsApp invoice automation system built using Python, FastAPI, Docker, and Google Gemini AI.
+Multi-source invoice automation platform built using Python, FastAPI, Docker, PostgreSQL, and WhatsApp Cloud API.
 
-InvoiceBot automatically:
-
-- Receives invoice PDFs from WhatsApp
-- Downloads media files automatically
-- Extracts invoice text from PDFs
-- Cleans invoice noise
-- Uses AI to extract structured invoice details
-- Detects duplicate invoices
-- Exports invoice data into Excel
-- Organizes processed files
+InvoiceBot automatically receives invoices from multiple sources, processes them, stores structured data, exports to Excel, and provides a live dashboard.
 
 ---
 
-# Features
+# Current Features
 
-## WhatsApp Cloud API Integration
+## Multi-Source Invoice Collection
 
-- Real-time webhook integration
+Currently supported:
+
+- WhatsApp Cloud API
+- Gmail PDF Fetcher
+- Local Upload
+
+Planned:
+
+- Outlook Integration
+- OneDrive Integration
+
+---
+
+# WhatsApp Automation
+
+- Real-time Meta webhook integration
 - Automatic PDF detection
 - Automatic media download
+- Automatic invoice processing pipeline
 
-## AI Invoice Extraction
+---
 
-Uses Google Gemini AI to extract:
+# Gmail Integration
 
-- Company name
-- Invoice number
-- Invoice date
-- VAT/GST amount
-- Total amount
+- OAuth Gmail authentication
+- Automatically fetches unread PDF invoices
+- Downloads attachments into processing pipeline
+
+---
+
+# Central Invoice Processing Engine
+
+All invoice sources use one centralized processor.
+
+Pipeline:
+
+```text
+WhatsApp / Gmail / Upload
+            ↓
+      process_invoice()
+            ↓
+      PDF Extraction
+            ↓
+      Invoice Parsing
+            ↓
+      Duplicate Detection
+            ↓
+      PostgreSQL Storage
+            ↓
+      Excel Export
+```
+
+---
+
+# PostgreSQL Storage
+
+Invoices are permanently stored inside PostgreSQL.
+
+Stored fields:
+
+- Company
+- Invoice Number
+- Date
+- VAT
+- Total
 - Currency
-- Confidence score
+- Source
+- Confidence
+- Filename
+- Created Time
 
-## Duplicate Detection
+---
 
-Prevents duplicate invoice insertion using invoice number validation.
+# Excel Export System
 
-## Dockerized Infrastructure
+Exports invoices into:
 
-Production-ready containerized backend using Docker Compose.
+```text
+storage/exports/Invoices_Master.xlsx
+```
 
-## File Lifecycle Management
+Features:
+
+- Separate Excel sheet per company
+- Source tracking
+- Confidence tracking
+- Duplicate prevention
+
+---
+
+# Dashboard UI
+
+FastAPI dashboard includes:
+
+- Invoice upload
+- Gmail fetch button
+- WhatsApp webhook support
+- Parser mode toggle
+- Live logs
+- Invoice table
+- System status
+
+---
+
+# Duplicate Detection
+
+Prevents duplicate invoice insertion using invoice number validation inside PostgreSQL.
+
+---
+
+# File Lifecycle Management
 
 Automatically manages:
 
 - incoming invoices
 - processed invoices
 - failed invoices
+- exported invoices
 
 ---
 
 # Architecture
 
 ```text
-WhatsApp PDF
-      ↓
-Meta Webhook
-      ↓
-FastAPI Webhook Server
-      ↓
-Media Download
-      ↓
-PDF Extraction
-      ↓
-Invoice Cleaning
-      ↓
-Gemini AI Extraction
-      ↓
-Structured JSON
-      ↓
-Excel Export
-      ↓
-Duplicate Detection
-      ↓
-Processed Storage
+            WhatsApp
+                 ↓
+              Webhook
+                 ↓
+
+ Gmail → process_invoice() ← Upload
+                 ↓
+          PDF Extraction
+                 ↓
+         Invoice Parsing
+                 ↓
+        Duplicate Detection
+                 ↓
+           PostgreSQL
+                 ↓
+            Excel Export
+                 ↓
+             Dashboard
 ```
 
 ---
 
 # Tech Stack
 
-| Technology         | Purpose                 |
-| ------------------ | ----------------------- |
-| Python             | Backend                 |
-| FastAPI            | Webhook server          |
-| Docker             | Containerization        |
-| Gemini AI          | AI extraction           |
-| pdfplumber         | PDF parsing             |
-| OpenPyXL           | Excel export            |
-| ngrok              | Local webhook tunneling |
-| WhatsApp Cloud API | Real-time messaging     |
+| Technology         | Purpose               |
+| ------------------ | --------------------- |
+| Python             | Backend               |
+| FastAPI            | Web API + Dashboard   |
+| PostgreSQL         | Invoice Database      |
+| SQLAlchemy         | ORM                   |
+| Docker             | Containerization      |
+| OpenPyXL           | Excel Export          |
+| pdfplumber         | PDF Parsing           |
+| Gmail API          | Email Integration     |
+| WhatsApp Cloud API | Messaging Integration |
+| ngrok              | Webhook Tunneling     |
 
 ---
 
@@ -103,10 +180,16 @@ app/
  ├── ai/
  ├── config/
  ├── connectors/
+ │    ├── gmail.py
+ │    └── whatsapp.py
  ├── core/
+ │    └── processor.py
  ├── database/
  ├── models/
  ├── services/
+ ├── web/
+ │    ├── routes.py
+ │    └── templates/
  └── utils/
 
 storage/
@@ -154,13 +237,19 @@ docker compose up --build
 
 ---
 
+# Initialize Database
+
+```bash
+docker compose exec invoicebot python -m app.init_db
+```
+
+---
+
 # Start ngrok
 
 ```bash
 ngrok http 8000
 ```
-
-Copy generated URL.
 
 Example:
 
@@ -176,7 +265,7 @@ https://abcd.ngrok-free.app/webhook
 
 ---
 
-# Meta Webhook Setup
+# WhatsApp Webhook Setup
 
 Inside Meta Developer Dashboard:
 
@@ -186,22 +275,51 @@ Inside Meta Developer Dashboard:
 
 ---
 
-# Example Invoice Output
+# Gmail OAuth Setup
 
-| Invoice No       | Company        | Date        | Total  |
-| ---------------- | -------------- | ----------- | ------ |
-| C145246T25102166 | Blink Commerce | 16-Nov-2025 | 213.00 |
+1. Create Google Cloud OAuth credentials
+2. Download `credentials.json`
+3. Place inside project root
+4. Run Gmail connector once
+
+```bash
+python app/connectors/gmail.py
+```
 
 ---
 
-# Future Improvements
+# Run Dashboard
 
-- PostgreSQL integration
-- Google Sheets sync
-- Gmail automation
+Open:
+
+```text
+http://localhost:8000
+```
+
+---
+
+# Current System Status
+
+Implemented:
+
+- WhatsApp invoice automation
+- Gmail invoice fetching
+- PostgreSQL storage
+- Dashboard UI
+- Company-wise Excel export
+- Duplicate detection
+- Source tracking
+- Docker infrastructure
+
+---
+
+# Planned Improvements
+
+- Outlook connector
+- OneDrive connector
+- Better offline invoice parser
 - OCR support
-- Analytics dashboard
 - Background workers
 - Cloud deployment
-
----
+- Analytics dashboard
+- Google Sheets sync
