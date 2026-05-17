@@ -21,6 +21,23 @@ services:
     ports:
       - "8000:8000"
 
+  # gmail-worker:
+  #   build: .
+  #   container_name: invoicebot-gmail
+
+  #   command: python -m app.gmail_worker
+
+  #   volumes:
+  #     - .:/app
+
+  #   env_file:
+  #     - .env
+
+  #   depends_on:
+  #     - postgres
+
+  #   restart: always
+
   postgres:
     image: postgres:15
     container_name: invoicebot-postgres
