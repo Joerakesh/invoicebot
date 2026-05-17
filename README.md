@@ -1,8 +1,8 @@
 # InvoiceBot
 
-Multi-source invoice automation platform built using Python, FastAPI, Docker, PostgreSQL, and WhatsApp Cloud API.
+Multi-source invoice automation platform built using Python, FastAPI, Docker, Gmail API, WhatsApp Cloud API, and AI-powered invoice parsing.
 
-InvoiceBot automatically receives invoices from multiple sources, processes them, stores structured data, exports to Excel, and provides a live dashboard.
+InvoiceBot automatically receives invoice PDFs from multiple sources, extracts structured invoice data, exports invoices into Excel sheets, and provides a lightweight dashboard UI.
 
 ---
 
@@ -12,35 +12,38 @@ InvoiceBot automatically receives invoices from multiple sources, processes them
 
 Currently supported:
 
+- Gmail Invoice Fetching
 - WhatsApp Cloud API
-- Gmail PDF Fetcher
-- Local Upload
+- Local PDF Upload
 
 Planned:
 
 - Outlook Integration
 - OneDrive Integration
+- Google Drive Sync
 
 ---
 
-# WhatsApp Automation
+# Gmail Invoice Automation
+
+- OAuth Gmail authentication
+- Automatically fetches unread invoice emails
+- Detects PDF attachments
+- Downloads invoices automatically
+- Marks processed emails as read
+
+---
+
+# WhatsApp Invoice Automation
 
 - Real-time Meta webhook integration
 - Automatic PDF detection
 - Automatic media download
-- Automatic invoice processing pipeline
+- Automatic invoice processing
 
 ---
 
-# Gmail Integration
-
-- OAuth Gmail authentication
-- Automatically fetches unread PDF invoices
-- Downloads attachments into processing pipeline
-
----
-
-# Central Invoice Processing Engine
+# Central Invoice Processing Pipeline
 
 All invoice sources use one centralized processor.
 
@@ -51,35 +54,31 @@ WhatsApp / Gmail / Upload
             ↓
       process_invoice()
             ↓
-      PDF Extraction
+        PDF Extraction
             ↓
-      Invoice Parsing
+       AI Invoice Parsing
             ↓
       Duplicate Detection
             ↓
-      PostgreSQL Storage
+         Excel Export
             ↓
-      Excel Export
+       Processed Storage
 ```
 
 ---
 
-# PostgreSQL Storage
+# AI Invoice Extraction
 
-Invoices are permanently stored inside PostgreSQL.
+InvoiceBot uses Gemini AI to extract:
 
-Stored fields:
-
-- Company
+- Company Name
 - Invoice Number
-- Date
-- VAT
-- Total
+- Invoice Date
+- VAT / GST
+- Total Amount
 - Currency
-- Source
-- Confidence
-- Filename
-- Created Time
+
+Includes fallback offline parser if AI becomes unavailable.
 
 ---
 
@@ -95,8 +94,17 @@ Features:
 
 - Separate Excel sheet per company
 - Source tracking
-- Confidence tracking
 - Duplicate prevention
+- Automatic workbook creation
+
+Example sheets:
+
+```text
+Amazon
+Blinkit
+Swiggy
+AR South Indian Foods
+```
 
 ---
 
@@ -104,19 +112,18 @@ Features:
 
 FastAPI dashboard includes:
 
-- Invoice upload
-- Gmail fetch button
-- WhatsApp webhook support
-- Parser mode toggle
-- Live logs
-- Invoice table
-- System status
+- Gmail OAuth login
+- Fetch invoices button
+- Local invoice upload
+- System logs
+- Gmail connection status
+- Downloaded invoice list
 
 ---
 
 # Duplicate Detection
 
-Prevents duplicate invoice insertion using invoice number validation inside PostgreSQL.
+Prevents duplicate invoice insertion using invoice number validation inside Excel sheets.
 
 ---
 
@@ -143,13 +150,13 @@ Automatically manages:
                  ↓
           PDF Extraction
                  ↓
-         Invoice Parsing
+         AI Invoice Parsing
                  ↓
         Duplicate Detection
                  ↓
-           PostgreSQL
-                 ↓
             Excel Export
+                 ↓
+          Processed Files
                  ↓
              Dashboard
 ```
@@ -161,13 +168,12 @@ Automatically manages:
 | Technology         | Purpose               |
 | ------------------ | --------------------- |
 | Python             | Backend               |
-| FastAPI            | Web API + Dashboard   |
-| PostgreSQL         | Invoice Database      |
-| SQLAlchemy         | ORM                   |
+| FastAPI            | API + Dashboard       |
 | Docker             | Containerization      |
+| Gemini AI          | Invoice Parsing       |
+| Gmail API          | Email Integration     |
 | OpenPyXL           | Excel Export          |
 | pdfplumber         | PDF Parsing           |
-| Gmail API          | Email Integration     |
 | WhatsApp Cloud API | Messaging Integration |
 | ngrok              | Webhook Tunneling     |
 
@@ -184,9 +190,8 @@ app/
  │    └── whatsapp.py
  ├── core/
  │    └── processor.py
- ├── database/
- ├── models/
  ├── services/
+ │    └── excel_service.py
  ├── web/
  │    ├── routes.py
  │    └── templates/
@@ -229,7 +234,26 @@ VERIFY_TOKEN=invoicebot123
 
 ---
 
-# Run With Docker
+# Gmail OAuth Setup
+
+1. Create Google Cloud OAuth credentials
+2. Download `credentials.json`
+3. Place it in project root
+
+Example:
+
+```text
+invoicebot/
+ ├── credentials.json
+ ├── docker-compose.yml
+ └── app/
+```
+
+---
+
+# Run InvoiceBot
+
+## Option 1 — Docker
 
 ```bash
 docker compose up --build
@@ -237,15 +261,67 @@ docker compose up --build
 
 ---
 
-# Initialize Database
+## Option 2 — One Click Startup
 
 ```bash
-docker compose exec invoicebot python -m app.init_db
+./run.sh
+```
+
+This automatically:
+
+- Starts Docker containers
+- Builds the project
+- Opens dashboard in browser
+- Streams logs
+
+---
+
+# Open Dashboard
+
+```text
+http://localhost:8000
 ```
 
 ---
 
-# Start ngrok
+# Gmail Login
+
+Open dashboard and click:
+
+```text
+Connect Gmail
+```
+
+This stores OAuth token automatically inside:
+
+```text
+storage/token.json
+```
+
+---
+
+# Fetch Gmail Invoices
+
+Click:
+
+```text
+Fetch Invoices
+```
+
+InvoiceBot will:
+
+- Search unread emails
+- Detect invoice PDFs
+- Download attachments
+- Parse invoices
+- Export to Excel
+- Move processed files
+
+---
+
+# WhatsApp Webhook Setup
+
+Start ngrok:
 
 ```bash
 ngrok http 8000
@@ -263,10 +339,6 @@ Webhook URL:
 https://abcd.ngrok-free.app/webhook
 ```
 
----
-
-# WhatsApp Webhook Setup
-
 Inside Meta Developer Dashboard:
 
 - Configure webhook URL
@@ -275,41 +347,19 @@ Inside Meta Developer Dashboard:
 
 ---
 
-# Gmail OAuth Setup
-
-1. Create Google Cloud OAuth credentials
-2. Download `credentials.json`
-3. Place inside project root
-4. Run Gmail connector once
-
-```bash
-python app/connectors/gmail.py
-```
-
----
-
-# Run Dashboard
-
-Open:
-
-```text
-http://localhost:8000
-```
-
----
-
 # Current System Status
 
 Implemented:
 
-- WhatsApp invoice automation
 - Gmail invoice fetching
-- PostgreSQL storage
-- Dashboard UI
+- WhatsApp invoice automation
+- AI invoice extraction
+- Offline fallback parser
 - Company-wise Excel export
 - Duplicate detection
-- Source tracking
+- Dashboard UI
 - Docker infrastructure
+- One-click startup script
 
 ---
 
@@ -317,9 +367,10 @@ Implemented:
 
 - Outlook connector
 - OneDrive connector
-- Better offline invoice parser
 - OCR support
 - Background workers
-- Cloud deployment
-- Analytics dashboard
 - Google Sheets sync
+- Analytics dashboard
+- Cloud deployment
+- Electron desktop app
+- Automatic Gmail polling every 10 minutes
