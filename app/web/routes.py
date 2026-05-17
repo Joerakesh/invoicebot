@@ -15,6 +15,11 @@ from app.connectors.gmail import GmailConnector
 
 from app.core.processor import process_invoice
 
+# from app.database.db import SessionLocal
+# from app.models.invoice import Invoice
+
+from google_auth_oauthlib.flow import InstalledAppFlow
+
 router = APIRouter()
 
 templates = Jinja2Templates(
@@ -66,11 +71,22 @@ def gmail_fetch():
 
         files = connector.fetch()
 
+        processed = []
+
+        for file in files:
+
+            process_invoice(
+                file,
+                source="gmail"
+            )
+
+            processed.append(file)
+
         return JSONResponse(
             {
                 "success": True,
-                "message": f"{len(files)} Gmail invoices downloaded",
-                "files": files
+                "message": f"{len(processed)} invoices processed",
+                "files": processed
             }
         )
 
@@ -85,8 +101,6 @@ def gmail_fetch():
             },
             status_code=500
         )
-
-
 @router.get("/whatsapp/status")
 def whatsapp_status():
 
@@ -155,3 +169,68 @@ def health():
             "parser_mode": PARSER_MODE
         }
     )
+    
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/gmail.readonly"
+]
+
+
+@router.get("/gmail/login")
+def gmail_login(request: Request):
+
+    flow = InstalledAppFlow.from_client_secrets_file(
+        "credentials.json",
+        SCOPES
+    )
+
+    flow.redirect_uri = (
+        "http://localhost:8000/gmail/callback"
+    )
+
+    authorization_url, state = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent"
+    )
+
+    request.app.state.gmail_flow = flow
+
+    return JSONResponse({
+        "auth_url": authorization_url
+    })
+        
+@router.get("/gmail/callback")
+def gmail_callback(request: Request, code: str):
+
+    flow = request.app.state.gmail_flow
+
+    flow.fetch_token(code=code)
+
+    creds = flow.credentials
+
+    os.makedirs("storage", exist_ok=True)
+
+    with open("storage/token.json", "w") as token:
+
+        token.write(creds.to_json())
+
+    return templates.TemplateResponse(
+        request=request,
+        name="gmail_success.html",
+        context={
+            "message": "Gmail Connected Successfully"
+        }
+    )
+    
+
+@router.get("/gmail/status")
+def gmail_status():
+
+    connected = os.path.exists(
+        "storage/token.json"
+    )
+
+    return JSONResponse({
+        "connected": connected
+    })
