@@ -2,10 +2,8 @@ import os
 import base64
 
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
-from app.core.processor import process_invoice
+
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify"
@@ -16,48 +14,43 @@ class GmailConnector:
 
     def __init__(self):
 
-        self.service = self.authenticate()
+        self.authenticate()
 
     def authenticate(self):
 
-        creds = None
+        token_path = "storage/token.json"
 
-        if os.path.exists("token.json"):
-            creds = Credentials.from_authorized_user_file(
-                "token.json",
-                SCOPES
-            )
+        self.creds = Credentials.from_authorized_user_file(
+            token_path,
+            SCOPES
+        )
 
-        if not creds or not creds.valid:
-
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-
-            else:
-
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    "credentials.json",
-                    SCOPES
-                )
-
-                creds = flow.run_local_server(port=0)
-
-            with open("token.json", "w") as token:
-                token.write(creds.to_json())
-
-        return build("gmail", "v1", credentials=creds)
+        self.service = build(
+            "gmail",
+            "v1",
+            credentials=self.creds
+        )
 
     def fetch(self):
 
+        query = "is:unread has:attachment invoice"
+
         results = self.service.users().messages().list(
             userId="me",
-            q="has:attachment filename:pdf is:unread",
-            maxResults=10
+            q=query,
+            maxResults=20
         ).execute()
 
         messages = results.get("messages", [])
 
         downloaded_files = []
+
+        os.makedirs(
+            "storage/incoming",
+            exist_ok=True
+        )
+
+        print("GMAIL MESSAGES FOUND:", len(messages))
 
         for msg in messages:
 
@@ -66,7 +59,19 @@ class GmailConnector:
                 id=msg["id"]
             ).execute()
 
-            payload = msg_data["payload"]
+            payload = msg_data.get("payload", {})
+
+            headers = payload.get("headers", [])
+
+            subject = ""
+
+            for h in headers:
+
+                if h["name"] == "Subject":
+
+                    subject = h["value"]
+
+            print("EMAIL SUBJECT:", subject)
 
             parts = payload.get("parts", [])
 
@@ -74,7 +79,7 @@ class GmailConnector:
 
                 filename = part.get("filename")
 
-                if filename.endswith(".pdf"):
+                if filename and filename.lower().endswith(".pdf"):
 
                     attachment_id = part["body"]["attachmentId"]
 
@@ -84,37 +89,28 @@ class GmailConnector:
                         id=attachment_id
                     ).execute()
 
-                    data = attachment["data"]
-
-                    file_data = base64.urlsafe_b64decode(data)
+                    file_data = base64.urlsafe_b64decode(
+                        attachment["data"]
+                    )
 
                     save_path = f"storage/incoming/{filename}"
 
                     with open(save_path, "wb") as f:
+
                         f.write(file_data)
 
-                    print("GMAIL PDF SAVED:", save_path)
-                    
-                    process_invoice(
-                        save_path,
-                        source="email"
-                    )
-
                     downloaded_files.append(save_path)
-                    
-                    self.service.users().messages().modify(
-                        userId='me',
-                        id=msg["id"],
-                        body={
-                            'removeLabelIds': ['UNREAD']
-                        }
-                    ).execute()
+
+                    print("GMAIL PDF SAVED:", save_path)
+
+            # MARK EMAIL AS READ
+
+            self.service.users().messages().modify(
+                userId="me",
+                id=msg["id"],
+                body={
+                    "removeLabelIds": ["UNREAD"]
+                }
+            ).execute()
 
         return downloaded_files
-
-
-if __name__ == "__main__":
-
-    connector = GmailConnector()
-
-    connector.fetch()
