@@ -1,10 +1,49 @@
 import os
+from datetime import datetime
 
 from openpyxl import Workbook
 from openpyxl import load_workbook
 
+from dotenv import load_dotenv
 
-FILE_NAME = "Invoices_Master.xlsx"
+
+load_dotenv()
+
+
+EXCEL_PREFIX = os.getenv(
+    "EXCEL_FILE_PREFIX",
+    "Invoices"
+)
+
+
+def get_financial_year():
+
+    now = datetime.now()
+
+    year = now.year
+
+    month = now.month
+
+    # APRIL -> MARCH
+
+    if month >= 4:
+
+        start_year = year
+        end_year = year + 1
+
+    else:
+
+        start_year = year - 1
+        end_year = year
+
+    return f"{start_year}_{end_year}"
+
+
+def get_excel_filename():
+
+    financial_year = get_financial_year()
+
+    return f"{EXCEL_PREFIX}_{financial_year}.xlsx"
 
 
 def save_excel(base_path, data):
@@ -14,9 +53,11 @@ def save_excel(base_path, data):
         exist_ok=True
     )
 
+    file_name = get_excel_filename()
+
     file_path = os.path.join(
         base_path,
-        FILE_NAME
+        file_name
     )
 
     company = data.get(
@@ -80,11 +121,11 @@ def save_excel(base_path, data):
 
         return True
 
-    # LOAD EXISTING
+    # LOAD EXISTING FILE
 
     wb = load_workbook(file_path)
 
-    # CREATE SHEET IF NOT EXISTS
+    # CREATE COMPANY SHEET
 
     if sheet_name not in wb.sheetnames:
 
